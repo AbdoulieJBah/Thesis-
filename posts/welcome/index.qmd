@@ -4,7 +4,7 @@ author: "Tristan O'Malley"
 date: "2023-12-25"
 categories: [news]
 ---
-
+This is funny we are trying to see if it is going to reflect on my github 
 This is the first post in a Quarto blog. Welcome!
 
 ![](thumbnail.jpg)
