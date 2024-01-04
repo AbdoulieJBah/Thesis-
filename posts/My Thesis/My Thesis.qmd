@@ -1,0 +1,215 @@
+---
+title: My Thesis
+author: Abdoulie J Bah
+date: '2023-11-18'
+categories:
+  - code
+  - analysis
+freeze: false
+code-fold: true
+code-tools: true
+jupyter: python3
+---
+
+# Predicting post-operative outcomes related to patients who underwent haemorrhoids surgery in an Italian hospital.
+
+"This dataset include data for predicting post-operative outcomes of haemorrhoids surgery in individuals from the country of Italy, based on their occurrence of post-operative complications and the occurrence of post-operative relapses. The data contains 17 attributes and 1732 records, the records are labeled with the class variable COMPLICANZE (COMPLICANZE Level), that allows classification of the data using the values of Si,No: I=1, II=2, III=3, IIIa=4, IIIb=5, IV=6, IVa=7, IVb=8,and V=9. the data was collected from the Italian Hospitol Data-base."
+
+## Packages
+
+```{python}
+import pandas as pd
+import numpy as np
+import sklearn as skl
+from sklearn import preprocessing
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import accuracy_score
+import seaborn as sns
+import matplotlib.pyplot as plt
+import dash
+#import dash_core_components as dcc
+#import dash_html_components as html
+from dash.dependencies import Input, Output, State
+import statistics 
+from sklearn import preprocessing
+from sklearn import svm
+from sklearn.model_selection import StratifiedKFold,cross_val_score,RandomizedSearchCV,GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier,GradientBoostingClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.naive_bayes import GaussianNB
+from xgboost import XGBClassifier
+import xgboost as xgb
+import warnings 
+warnings.filterwarnings("ignore")
+```
+
+## Variables
+
+```{python}
+#df = pd.read_csv('ANALISI_EMODART_18ottobre_raw_and_data_sinthetic.csv')
+df= pd.read_excel("ANALISI_EMODART_18ottobre.xlsx")
+```
+
+```{python}
+df.to_csv('ANALISI_EMODART_18ottobre.csv')
+```
+
+```{python}
+df
+```
+
+The dataset contains 17 variables: - NUMERO PAZIENTE - ETA' - SESSO(M=0; f=1) - PROLASSO_EMORR(SI/NO) - tipo_interv - Ligasure(SI/NO) - Focus(SI/NO) - Diatermica(SI/NO) - anestesia - SANGUINAMENTO\npre(SI/NO) - RIDUZIONEMANUALE\npre(SI/NO) - DOLORE-FASTIDIOpre(SI/NO) - scoretotale_pre - COMPLICANZE(no=0; se sì: I=1, II=2, III=3, IIIa=4, IIIb=5, IV=6, IVa=7, IVb=8, V=9) - COMPLICANZE(SI/NO) - RECIDIVE(no=0; se sì: I=1, II=2, III=3, IV=4) - RECIDIVE(si/no)
+
+2 target: - Post Operative Complications, renamed COMPLICANZE - post Operative relapses, renamed RECIDIVE
+
+Another revelant information is that all of these variables are Non-categorical data sets.
+
+### Problematic
+
+Based on all the data, the objective of this project is to classify individuals according to their Complication level and relapses level. This variables will be named: **COMPLICANZE** and **RECIDIVE**. This variable will take differents values among:
+
+**COMPLICANZE**
+
+-   no=0
+
+**se sì:** - I=1 - II=2 - III=3 - IIIa=4 - IIIb=5 - IV=6 - IVa=7 - IVb=8 - V=9
+
+**RECIDIVE**
+
+-   no=0
+
+**se sì:** - I=1 - II=2 - III=3 - IV=4
+
+## Data cleaning : part 1
+
+We will perform data cleansing in two parts. In the first part we will process the data so that they are the most usable for graphic analysis. And in the second part we then transform the variables so that it is usable for the algorithm
+
+### Missing values
+
+First, let's replace all the row with missing value
+
+```{python}
+#| scrolled: true
+df.isnull().any()
+```
+
+```{python}
+df["ETA'"].fillna(method='ffill',inplace=True)
+```
+
+```{python}
+df["PROLASSO_EMORR Sì=1 NO=0"].fillna(method='ffill',inplace=True)
+```
+
+```{python}
+df["SANGUINAMENTO\npre SI/NO"].fillna(method='ffill',inplace=True)
+```
+
+```{python}
+df["RIDUZIONEMANUALE\npre SI/NO"].fillna(method='ffill',inplace=True)
+```
+
+```{python}
+df["DOLORE-FASTIDIOpre SI/NO"].fillna(method='ffill',inplace=True)
+```
+
+```{python}
+df["scoretotale_pre"].fillna(method='ffill', inplace=True)
+```
+
+```{python}
+df["COMPLICANZE (no=0; se sì: I=1, II=2, III=3, IIIa=4, IIIb=5, IV=6, IVa=7, IVb=8, V=9)"].fillna(method='ffill', inplace=True)
+```
+
+```{python}
+df["COMPLICANZE SI/NO"].fillna(method='ffill',inplace=True)
+```
+
+```{python}
+df["RECIDIVE (no=0; se sì: I=1, II=2, III=3,  IV=4)"].fillna(method='ffill',inplace=True)
+```
+
+```{python}
+df["RECIDIVE si/no"].fillna(method='ffill',inplace=True)
+```
+
+```{python}
+df.isnull().any()
+```
+
+```{python}
+df.rename(columns={"COMPLICANZE (no=0; se sì: I=1, II=2, III=3, IIIa=4, IIIb=5, IV=6, IVa=7, IVb=8, V=9)": 'COMPLICANZE',"RECIDIVE (no=0; se sì: I=1, II=2, III=3,  IV=4)":"RECIDIVE"}, inplace=True)
+```
+
+### Outliers
+
+For non-categorical variables, we need to check if there is any outliers.
+
+```{python}
+sns.boxplot(x=df["ETA'"])
+```
+
+Only few point are outside the box for the Age, we will exclude the extrem values. We set the terminales by using the quantiles values.
+
+```{python}
+df_categorized = df.copy()
+```
+
+```{python}
+q1, q2 = df_categorized["ETA'"].quantile(q=0.25), df_categorized["ETA'"].quantile(q=0.75)
+
+IQR = q2-q1
+
+#Age selection
+df_categorized = df_categorized[df_categorized["ETA'"] >  q1 - 1.5*IQR]
+df_categorized = df_categorized[df_categorized["ETA'"] <  q2 + 1.5*IQR]
+
+df_categorized.shape
+```
+
+Only 4 rows were deleted.
+
+```{python}
+sns.boxplot(x=df_categorized["ETA'"])
+```
+
+## Data Analysis
+
+### Features
+
+```{python}
+df.describe().T.style.bar(subset=['mean'], color='#606ff2').background_gradient(subset=['std'], cmap='Blues').background_gradient(subset=['50%'], cmap='Blues')
+```
+
+```{python}
+sns.histplot(data = df_categorized, x = df_categorized["ETA'"], hue = df_categorized['COMPLICANZE'], multiple = 'fill')
+sns.set(rc = {'figure.figsize':(18,15)})
+```
+
+```{python}
+sns.histplot(data = df_categorized, x = df_categorized["ETA'"], hue = df_categorized['RECIDIVE'], multiple = 'fill')
+sns.set(rc = {'figure.figsize':(18,15)})
+```
+
+```{python}
+ax = sns.histplot(data = df_categorized, x = df_categorized['COMPLICANZE'], hue = df_categorized['SESSO M=0; f=1'], multiple= 'fill')
+ax.set_xticklabels(ax.get_xticklabels(), rotation=40, ha="right")
+sns.set(rc = {'figure.figsize':(8,8)})
+```
+
+```{python}
+ax = sns.histplot(data = df_categorized, x = df_categorized['RECIDIVE'], hue = df_categorized['SESSO M=0; f=1'], multiple= 'fill')
+ax.set_xticklabels(ax.get_xticklabels(), rotation=40, ha="right")
+sns.set(rc = {'figure.figsize':(8,8)})
+```
+
+```{python}
+big_count = pd.crosstab(df_categorized['COMPLICANZE'], df_categorized['SESSO M=0; f=1'])
+big_pct = big_count.div(big_count.sum(1), axis=0)
+big_pct.plot.barh(stacked=True, figsize=(15, 6), alpha=0.9, grid=False, cmap='plasma')
+plt.legend(loc="right", bbox_to_anchor=(1, 1.1), ncol=2)
+plt.title("SESSO")
+```
